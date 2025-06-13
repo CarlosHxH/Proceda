@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador EDI PROCEDA</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1, h2 {
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        select, input, button {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 10px;
+            font-size: 16px;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #f1f1f1;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+        }
+
+        .tab.active {
+            background: white;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .raw-content {
+            font-family: monospace;
+            white-space: pre-wrap;
+            background: #f8f8f8;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .status {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+            border: 1px solid #d6e9c6;
+        }
+
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+            border: 1px solid #ebccd1;
+        }
+
+        .form-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+
+        .form-section h3 {
+            margin-top: 0;
+        }
+
+        .checkbox-group {
+            margin-bottom: 10px;
+        }
+
+        .checkbox-group label {
+            display: inline;
+            font-weight: normal;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gerador EDI PROCEDA</h1>
+        <p>Gerador de arquivos EDI nos padrões OCOREN (ocorrências na entrega), CONEMB (conhecimentos embarcados) e DOCCOB (OCORRÊNCIA NA ENTREGA DE MERCADORIA)</p>
+
+        <div class="form-group">
+            <label for="tipoArquivo">Tipo de Arquivo:</label>
+            <select id="tipoArquivo">
+                <option value="CON">CONEMB - Conhecimentos Embarcados</option>
+                <option value="OCO">OCOREN - Ocorrências na Entrega</option>
+                <option value="COB">DOCCOB - Documentos de Cobrança</option>
+            </select>
+        </div>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="config">Configuração</div>
+            <div class="tab" data-tab="preview">Pré-visualização</div>
+            <div class="tab" data-tab="download">Download</div>
+        </div>
+
+        <div id="config" class="tab-content active">
+            <div class="form-section">
+                <h3>Cabeçalho de Intercâmbio (000)</h3>
+                <div class="form-group">
+                    <label for="remetente">Identificação do Remetente:</label>
+                    <input type="text" id="remetente" value="REMETENTE">
+                </div>
+                <div class="form-group">
+                    <label for="destinatario">Identificação do Destinatário:</label>
+                    <input type="text" id="destinatario" value="DESTINATARIO">
+                </div>
+            </div>
+
+            <div id="conemb-fields" class="form-section">
+                <h3>CONEMB - Conhecimentos Embarcados</h3>
+                <div class="form-group">
+                    <label for="quantConhecimentos">Quantidade de Conhecimentos:</label>
+                    <input type="number" id="quantConhecimentos" min="1" max="1000" value="3">
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="incluirTotal" checked>
+                    <label for="incluirTotal">Incluir registro de totalização (323)</label>
+                </div>
+            </div>
+
+            <div id="ocoren-fields" class="form-section" style="display:none;">
+                <h3>OCOREN - Ocorrências na Entrega</h3>
+                <div class="form-group">
+                    <label for="quantOcorrencias">Quantidade de Ocorrências:</label>
+                    <input type="number" id="quantOcorrencias" min="1" max="100" value="2">
+                </div>
+                <div class="form-group">
+                    <label for="tipoOcorrencia">Tipo de Ocorrência:</label>
+                    <select id="tipoOcorrencia">
+                        <option value="01">01 - Entrega Realizada Normalmente</option>
+                        <option value="02">02 - Entrega Fora da Data Programada</option>
+                        <option value="03">03 - Recusa por Falta de Pedido de Compra</option>
+                        <option value="21">21 - Estabelecimento Fechado</option>
+                        <option value="27">27 - Roubo de Carga</option>
+                        <option value="99">99 - Outros</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="docbob-fields" class="form-section" style="display:none;">
+                <h3>DOCCOB - Documentos de Cobrança</h3>
+                <div class="form-group">
+                    <label for="quantDocumentos">Quantidade de Documentos:</label>
+                    <input type="number" id="quantDocumentos" min="1" max="100" value="2">
+                </div>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="incluirTotalCob" checked>
+                    <label for="incluirTotalCob">Incluir registro de totalização (355)</label>
+                </div>
+            </div>
+
+            <button id="gerarBtn">Gerar Arquivo EDI</button>
+        </div>
+
+        <div id="preview" class="tab-content">
+            <h2>Pré-visualização do Arquivo</h2>
+            <div id="status" class="status"></div>
+            <div id="previewContent" class="raw-content"></div>
+        </div>
+
+        <div id="download" class="tab-content">
+            <h2>Download do Arquivo</h2>
+            <div id="downloadStatus" class="status"></div>
+            <button id="downloadBtn" style="display:none;">Download do Arquivo EDI</button>
+        </div>
+    </div>
+
+    <script>
+        // Dados de exemplo para geração
+        const ocorrencias = {
+            "01": "Entrega Realizada Normalmente",
+            "02": "Entrega Fora da Data Programada",
+            "03": "Recusa por Falta de Pedido de Compra",
+            "04": "Recusa por Pedido de Compra Cancelado",
+            "05": "Falta de Espaço Físico no Depósito do Cliente Destino",
+            "06": "Endereço do Cliente Destino não Localizado",
+            "07": "Devolução não Autorizada pelo Cliente",
+            "08": "Preço Mercadoria em Desacordo com o Pedido Compra",
+            "09": "Mercadoria em Desacordo com o Pedido Compra",
+            "10": "Cliente Destino somente Recebe Mercadoria com Frete Pago",
+            "11": "Recusa por Deficiência Embalagem Mercadoria",
+            "12": "Redespacho não Indicado",
+            "13": "Transportadora não Atende a Cidade do Cliente Destino",
+            "14": "Mercadoria Sinistrada",
+            "15": "Endo Sagem Sinistrada",
+            "16": "Pedido de Compras em Duplicidade",
+            "17": "Mercadoria fora da Embalagem de Atacadista",
+            "18": "Mercadorias Trocadas",
+            "19": "Reentrega Solicitada pelo Cliente",
+            "20": "Entrega Prejudicada por Horário/Falta de Tempo Hábil",
+            "21": "Estabelecimento Fechado",
+            "22": "Reentrega sem Cobrança do Cliente",
+            "23": "Extravio de Mercadoria em Trânsito",
+            "24": "Mercadoria Reentregue ao Cliente Destino",
+            "25": "Mercadoria Devolvida ao cliente Origem de Origem",
+            "26": "Nota Fiscal Retida pela Fiscalização",
+            "27": "Roubo de Carga",
+            "28": "Mercadoria Retida até Segunda Ordem",
+            "29": "Cliente Retira Mercadoria na Transportadora",
+            "30": "Problema com a Documentação (Nota Fiscal / CTRC)",
+            "31": "Entrega com Indenização Efetuada",
+            "32": "Falta com Solicitação de Reposição",
+            "33": "Falta com Busca/Reconferência",
+            "34": "Cliente Fechado para Balanço",
+            "35": "Quantidade de Produto em Desacordo (Nota Fiscal e/ou Pedido)",
+            "41": "Pedido de Compra Incompleto",
+            "42": "Nota Fiscal com Produtos de Setores Diferentes",
+            "43": "Periado Local/Macional",
+            "44": "Excesso de Veículos",
+            "45": "Cliente Destino Encerrou Atividades",
+            "46": "Responsável de Recebimento Ausente",
+            "47": "Cliente Destino em Greve",
+            "50": "Greve nacional (greve geral)",
+            "65": "Entrar em Contacto com o Comprador",
+            "66": "Troca não Disponível",
+            "67": "Fins Estatísticos",
+            "68": "Data de Entrega Diferente do Pedido",
+            "69": "Substituição Tributária",
+            "70": "Sistema Fora do Ar",
+            "71": "Cliente Destino não Recebe Pedido Parcial",
+            "72": "Cliente Destino só Recebe Pedido Parcial",
+            "73": "Redespacho somente com Frete Pago",
+            "74": "Funcionário não autorizado a Receber Mercadorias",
+            "75": "Mercadoria Embarcada para Rota Indevida",
+            "76": "Estrada/Entrada de Acesso Interditada",
+            "77": "Cliente Destino Mudou de Endereço",
+            "78": "Avaria Total",
+            "79": "Avaria Parcial",
+            "80": "Extravio Total",
+            "81": "Extravio Parcial",
+            "82": "Sobra de Mercadoria sem Nota Fiscal",
+            "83": "Mercadoria em poder da SUFRAMA para Internação",
+            "84": "Mercadoria Retirada para Conferência",
+            "85": "Apreensão Fiscal da Mercadoria",
+            "86": "Excesso de Carga/Peso",
+            "91": "Entrega Programada",
+            "92": "Problemas Fiscais",
+            "99": "Outros tipos de ocorrências não especificados acima"
+        };
+
+        // Estruturas dos registros (simplificadas)
+        const estruturas = {
+            '000': {
+                tamanho: 120,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "000" },
+                    { nome: "Remetente", formato: "A35", posicao: 4, valorPadrao: "" },
+                    { nome: "Destinatario", formato: "A35", posicao: 39, valorPadrao: "" },
+                    { nome: "Data", formato: "N6", posicao: 74, valorPadrao: "" },
+                    { nome: "Hora", formato: "N4", posicao: 80, valorPadrao: "" },
+                    { nome: "IdentIntercambio", formato: "A12", posicao: 84, valorPadrao: "" },
+                    { nome: "Filler", formato: "A25", posicao: 96, valorPadrao: "" }
+                ]
+            },
+            '320': {
+                tamanho: 680,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "320" },
+                    { nome: "IdentDocumento", formato: "A14", posicao: 4, valorPadrao: "" },
+                    { nome: "Filler", formato: "A709", posicao: 18, valorPadrao: "" }
+                ]
+            },
+            '321': {
+                tamanho: 680,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "321" },
+                    { nome: "CGC", formato: "N14", posicao: 4, valorPadrao: "" },
+                    { nome: "RazaoSocial", formato: "A40", posicao: 18, valorPadrao: "" },
+                    { nome: "Filler", formato: "A623", posicao: 58, valorPadrao: "" }
+                ]
+            },
+            '322': {
+                tamanho: 752,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "322" },
+                    { nome: "FilialEmissora", formato: "A10", posicao: 4, valorPadrao: "FILIAL01" },
+                    { nome: "Serie", formato: "A5", posicao: 14, valorPadrao: "A" },
+                    { nome: "Numero", formato: "A12", posicao: 19, valorPadrao: "" },
+                    { nome: "DataEmissao", formato: "N8", posicao: 31, valorPadrao: "" },
+                    { nome: "CondicaoFrete", formato: "A1", posicao: 39, valorPadrao: "C" },
+                    { nome: "Peso", formato: "N5,2", posicao: 40, valorPadrao: "10000" },
+                    { nome: "ValorFrete", formato: "N13,2", posicao: 47, valorPadrao: "500000" },
+                    { nome: "BaseICMS", formato: "N13,2", posicao: 62, valorPadrao: "500000" },
+                    { nome: "TaxaICMS", formato: "N2,2", posicao: 77, valorPadrao: "1200" },
+                    { nome: "ValorICMS", formato: "N13,2", posicao: 81, valorPadrao: "60000" },
+                    { nome: "FretePeso", formato: "N13,2", posicao: 96, valorPadrao: "300000" },
+                    { nome: "FreteValor", formato: "N13,2", posicao: 111, valorPadrao: "200000" },
+                    { nome: "SECCAT", formato: "N13,2", posicao: 126, valorPadrao: "0" },
+                    { nome: "ITR", formato: "N13,2", posicao: 141, valorPadrao: "0" },
+                    { nome: "Despacho", formato: "N13,2", posicao: 156, valorPadrao: "0" }
+                ]
+            },
+            '323': {
+                tamanho: 680,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "323" },
+                    { nome: "Quantidade", formato: "N4", posicao: 4, valorPadrao: "" },
+                    { nome: "ValorTotal", formato: "N13,2", posicao: 8, valorPadrao: "" },
+                    { nome: "Filler", formato: "A658", posicao: 23, valorPadrao: "" }
+                ]
+            },
+            '340': {
+                tamanho: 120,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "340" },
+                    { nome: "IdentDocumento", formato: "A14", posicao: 4, valorPadrao: "" },
+                    { nome: "Filler", formato: "A103", posicao: 18, valorPadrao: "" }
+                ]
+            },
+            '341': {
+                tamanho: 120,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "341" },
+                    { nome: "CGC", formato: "N14", posicao: 4, valorPadrao: "12345678000195" },
+                    { nome: "RazaoSocial", formato: "A40", posicao: 18, valorPadrao: "TRANSPORTADORA EXEMPLO LTDA" },
+                    { nome: "Filler", formato: "A63", posicao: 58, valorPadrao: "" }
+                ]
+            },
+            '342': {
+                tamanho: 120,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "342" },
+                    { nome: "CGCEmissor", formato: "N14", posicao: 4, valorPadrao: "98765432000198" },
+                    { nome: "SerieNF", formato: "A3", posicao: 18, valorPadrao: "1" },
+                    { nome: "NumeroNF", formato: "N8", posicao: 21, valorPadrao: "" },
+                    { nome: "CodOcorrencia", formato: "N2", posicao: 29, valorPadrao: "" },
+                    { nome: "DataOcorrencia", formato: "N8", posicao: 31, valorPadrao: "" },
+                    { nome: "HoraOcorrencia", formato: "N4", posicao: 39, valorPadrao: "1200" },
+                    { nome: "CodObservacao", formato: "N2", posicao: 43, valorPadrao: "01" },
+                    { nome: "Texto", formato: "A70", posicao: 45, valorPadrao: "OCORRENCIA GERADA PELO SISTEMA" },
+                    { nome: "Filler", formato: "A6", posicao: 115, valorPadrao: "" }
+                ]
+            },
+            '350': {
+                tamanho: 170,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "350" },
+                    { nome: "IdentDocumento", formato: "A14", posicao: 4, valorPadrao: "" },
+                    { nome: "Filler", formato: "A153", posicao: 18, valorPadrao: "" }
+                ]
+            },
+            '351': {
+                tamanho: 170,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "351" },
+                    { nome: "CGC", formato: "N14", posicao: 4, valorPadrao: "12345678000195" },
+                    { nome: "RazaoSocial", formato: "A40", posicao: 18, valorPadrao: "TRANSPORTADORA EXEMPLO LTDA" },
+                    { nome: "Filler", formato: "A113", posicao: 58, valorPadrao: "" }
+                ]
+            },
+            '352': {
+                tamanho: 170,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "352" },
+                    { nome: "FilialEmissora", formato: "A10", posicao: 4, valorPadrao: "FILIAL01" },
+                    { nome: "TipoDocumento", formato: "N1", posicao: 14, valorPadrao: "0" },
+                    { nome: "Serie", formato: "A3", posicao: 15, valorPadrao: "A" },
+                    { nome: "Numero", formato: "N10", posicao: 18, valorPadrao: "" },
+                    { nome: "DataEmissao", formato: "N8", posicao: 28, valorPadrao: "" },
+                    { nome: "DataVencimento", formato: "N8", posicao: 36, valorPadrao: "" },
+                    { nome: "ValorDocumento", formato: "N13.2", posicao: 44, valorPadrao: "1000000" },
+                    { nome: "TipoCobranca", formato: "A3", posicao: 59, valorPadrao: "NOR" },
+                    { nome: "ValorICMS", formato: "N13.2", posicao: 62, valorPadrao: "180000" },
+                    { nome: "JurosDia", formato: "N13.2", posicao: 77, valorPadrao: "1000" },
+                    { nome: "DataLimiteDesconto", formato: "N8", posicao: 92, valorPadrao: "" },
+                    { nome: "ValorDesconto", formato: "N13.2", posicao: 100, valorPadrao: "50000" },
+                    { nome: "AgenteCobranca", formato: "A35", posicao: 115, valorPadrao: "BANCO DO BRASIL" },
+                    { nome: "Agencia", formato: "N4", posicao: 150, valorPadrao: "1234" },
+                    { nome: "DigitoAgencia", formato: "A1", posicao: 154, valorPadrao: "X" },
+                    { nome: "ContaCorrente", formato: "N10", posicao: 155, valorPadrao: "987654321" },
+                    { nome: "DigitoConta", formato: "A2", posicao: 165, valorPadrao: "99" },
+                    { nome: "Acao", formato: "A1", posicao: 167, valorPadrao: "I" },
+                    { nome: "Filler", formato: "A3", posicao: 168, valorPadrao: "" }
+                ]
+            },
+            '355': {
+                tamanho: 170,
+                campos: [
+                    { nome: "Identificador", formato: "N3", posicao: 1, valorPadrao: "355" },
+                    { nome: "Quantidade", formato: "N4", posicao: 4, valorPadrao: "" },
+                    { nome: "ValorTotal", formato: "N13.2", posicao: 8, valorPadrao: "" },
+                    { nome: "Filler", formato: "A148", posicao: 23, valorPadrao: "" }
+                ]
+            }
+        };
+
+        // Funções auxiliares
+        function formatarNumero(numero, tamanho, decimais = 0) {
+            let str = numero.toString();
+            if (decimais > 0) {
+                // Remove o ponto decimal e formata para ter zeros à direita
+                const partes = str.split('.');
+                if (partes.length === 1) partes.push('0');
+                partes[1] = partes[1].padEnd(decimais, '0').substring(0, decimais);
+                str = partes.join('');
+            }
+            return str.padStart(tamanho, '0');
+        }
+
+        function formatarTexto(texto, tamanho) {
+            return texto.padEnd(tamanho, ' ').substring(0, tamanho);
+        }
+        //
+        function formatarData(data) {
+            const dia = data.getDate().toString().padStart(2, '0');
+            const mes = (data.getMonth() + 1).toString().padStart(2, '0');
+            const ano = data.getFullYear().toString();
+            return dia + mes + ano;
+        }
+        //
+        function formatarHora(data) {
+            const horas = data.getHours().toString().padStart(2, '0');
+            const minutos = data.getMinutes().toString().padStart(2, '0');
+            return horas + minutos;
+        }
+        //
+        function gerarNumeroAleatorio(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+        //
+        // Função para criar um registro
+        function criarRegistro(tipo, valoresPersonalizados = {}) {
+            const estrutura = estruturas[tipo];
+            if (!estrutura) {
+                console.error(`Estrutura para registro ${tipo} não encontrada`);
+                return '';
+            }
+            //
+            let registro = '';
+            const camposPreenchidos = {};
+            //
+            for (const campo of estrutura.campos) {
+                let valor = valoresPersonalizados[campo.nome] || campo.valorPadrao;
+
+                // Se não houver valor padrão nem personalizado, gerar um valor
+                if (valor === undefined || valor === '') {
+                    if (campo.nome.includes('Data')) {
+                        valor = formatarData(new Date());
+                    } else if (campo.nome.includes('Hora')) {
+                        valor = formatarHora(new Date());
+                    } else if (campo.nome.includes('Numero') || campo.nome.includes('Quantidade')) {
+                        valor = gerarNumeroAleatorio(1000, 9999).toString();
+                    } else if (campo.nome.includes('CGC') || campo.nome.includes('CNPJ')) {
+                        valor = gerarNumeroAleatorio(10000000000000, 99999999999999).toString();
+                    } else if (campo.formato.startsWith('N')) {
+                        // Campo numérico
+                        const tamanho = parseInt(campo.formato.substring(1).split('.')[0]);
+                        valor = gerarNumeroAleatorio(1, Math.pow(10, tamanho) - 1).toString();
+                    } else if (campo.formato.startsWith('A')) {
+                        // Campo alfanumérico
+                        const tamanho = parseInt(campo.formato.substring(1));
+                        valor = 'X'.repeat(tamanho);
+                    }
+                }
+
+                // Formatar o valor conforme o tipo
+                if (campo.formato.startsWith('N')) {
+                    // Numérico
+                    const partes = campo.formato.split('.');
+                    const tamanho = parseInt(partes[0].substring(1));
+                    const decimais = partes.length > 1 ? parseInt(partes[1]) : 0;
+                    
+                    valor = formatarNumero(valor, tamanho + decimais, decimais);
+                } else {
+                    // Alfanumérico
+                    const tamanho = parseInt(campo.formato.substring(1));
+                    valor = formatarTexto(valor, tamanho);
+                }
+                //
+                camposPreenchidos[campo.nome] = valor;
+                registro += valor;
+            }
+
+            // Preencher com espaços se necessário
+            if (registro.length < estrutura.tamanho) {
+                registro += ' '.repeat(estrutura.tamanho - registro.length);
+            }
+
+            return registro;
+        }
+
+        // Função para gerar arquivo CONEMB
+        function gerarConemb(quantConhecimentos, incluirTotal) {
+            const dataAtual = new Date();
+            const identificadorIntercambio = 'CON' + formatarData(dataAtual) + formatarHora(dataAtual) + '1';
+            
+            let arquivo = '';
+            
+            // Registro 000 - Cabeçalho de Intercâmbio
+            arquivo += criarRegistro('000', {
+                Remetente: document.getElementById('remetente').value,
+                Destinatario: document.getElementById('destinatario').value,
+                Data: formatarData(dataAtual).substring(0, 6), // DDMMAA
+                Hora: formatarHora(dataAtual),
+                IdentIntercambio: identificadorIntercambio
+            }) + '\n';
+            
+            // Registro 320 - Cabeçalho de Documento
+            arquivo += criarRegistro('320', {
+                IdentDocumento: 'CON' + formatarData(dataAtual) + formatarHora(dataAtual)
+            }) + '\n';
+            
+            // Registro 321 - Dados da Transportadora
+            arquivo += criarRegistro('321') + '\n';
+            
+            // Registros 322 - Conhecimentos Embarcados
+            for (let i = 1; i <= quantConhecimentos; i++) {
+                arquivo += criarRegistro('322', {
+                    Numero: i.toString().padStart(12, '0'),
+                    DataEmissao: formatarData(dataAtual),
+                    ValorFrete: (gerarNumeroAleatorio(100, 10000) * 100).toString(),
+                    BaseICMS: (gerarNumeroAleatorio(100, 10000) * 100).toString(),
+                    ValorICMS: (gerarNumeroAleatorio(10, 1000) * 100).toString(),
+                    FretePeso: (gerarNumeroAleatorio(50, 5000) * 100).toString(),
+                    FreteValor: (gerarNumeroAleatorio(50, 5000) * 100).toString(),
+                }) + '\n';
+            }
+            
+            // Registro 323 - Total de Conhecimentos (opcional)
+            if (incluirTotal) {
+                arquivo += criarRegistro('323', {
+                    Quantidade: quantConhecimentos.toString(),
+                    ValorTotal: (quantConhecimentos * 10000).toString()
+                }) + '\n';
+            }
+            
+            return arquivo;
+        }
+
+        // Função para gerar arquivo OCOREN
+        function gerarOcoren(quantOcorrencias, tipoOcorrencia) {
+            const dataAtual = new Date();
+            const identificadorIntercambio = 'OCO' + formatarData(dataAtual) + formatarHora(dataAtual) + '1';
+            
+            let arquivo = '';
+            
+            // Registro 000 - Cabeçalho de Intercâmbio
+            arquivo += criarRegistro('000', {
+                Remetente: document.getElementById('remetente').value,
+                Destinatario: document.getElementById('destinatario').value,
+                Data: formatarData(dataAtual).substring(0, 6), // DDMMAA
+                Hora: formatarHora(dataAtual),
+                IdentIntercambio: identificadorIntercambio
+            }) + '\n';
+            
+            // Registro 340 - Cabeçalho de Documento
+            arquivo += criarRegistro('340', {
+                IdentDocumento: 'OCO' + formatarData(dataAtual) + formatarHora(dataAtual)
+            }) + '\n';
+            
+            // Registro 341 - Dados da Transportadora
+            arquivo += criarRegistro('341') + '\n';
+            
+            // Registros 342 - Ocorrências na Entrega
+            for (let i = 1; i <= quantOcorrencias; i++) {
+                arquivo += criarRegistro('342', {
+                    NumeroNF: i.toString().padStart(8, '0'),
+                    CodOcorrencia: tipoOcorrencia,
+                    DataOcorrencia: formatarData(dataAtual),
+                    Texto: ocorrencias[tipoOcorrencia] || "OCORRENCIA GERADA PELO SISTEMA"
+                }) + '\n';
+            }
+            
+            return arquivo;
+        }
+
+        // Função para gerar arquivo DOCCOB
+        function gerarDoccob(quantDocumentos, incluirTotal) {
+            const dataAtual = new Date();
+            const dataVencimento = new Date();
+            dataVencimento.setDate(dataAtual.getDate() + 30);
+            
+            const identificadorIntercambio = 'COB' + formatarData(dataAtual) + formatarHora(dataAtual) + '1';
+            
+            let arquivo = '';
+            
+            // Registro 000 - Cabeçalho de Intercâmbio
+            arquivo += criarRegistro('000', {
+                Remetente: document.getElementById('remetente').value,
+                Destinatario: document.getElementById('destinatario').value,
+                Data: formatarData(dataAtual).substring(0, 6), // DDMMAA
+                Hora: formatarHora(dataAtual),
+                IdentIntercambio: identificadorIntercambio
+            }) + '\n';
+            
+            // Registro 350 - Cabeçalho de Documento
+            arquivo += criarRegistro('350', {
+                IdentDocumento: 'COB' + formatarData(dataAtual) + formatarHora(dataAtual)
+            }) + '\n';
+            
+            // Registro 351 - Dados da Transportadora
+            arquivo += criarRegistro('351') + '\n';
+            
+            // Registros 352 - Documentos de Cobrança
+            let valorTotal = 0;
+            for (let i = 1; i <= quantDocumentos; i++) {
+                const valorDoc = gerarNumeroAleatorio(100, 10000) * 100;
+                valorTotal += valorDoc;
+                
+                arquivo += criarRegistro('352', {
+                    Numero: i.toString().padStart(10, '0'),
+                    DataEmissao: formatarData(dataAtual),
+                    DataVencimento: formatarData(dataVencimento),
+                    ValorDocumento: valorDoc.toString(),
+                    ValorICMS: Math.floor(valorDoc * 0.18).toString(),
+                    DataLimiteDesconto: formatarData(new Date(dataAtual.getTime() + 10 * 24 * 60 * 60 * 1000)),
+                    ValorDesconto: Math.floor(valorDoc * 0.05).toString()
+                }) + '\n';
+                
+                // Registro 353 - Conhecimentos em Cobrança (1 por documento)
+                arquivo += criarRegistro('353', {
+                    Numero: i.toString().padStart(12, '0'),
+                    DataEmissao: formatarData(dataAtual),
+                    ValorFrete: valorDoc.toString()
+                }) + '\n';
+                
+                // Registro 354 - Notas Fiscais em Cobrança (1 por documento)
+                arquivo += criarRegistro('354', {
+                    NumeroNotaFiscal: i.toString().padStart(8, '0'),
+                    DataEmissao: formatarData(dataAtual),
+                    Peso: gerarNumeroAleatorio(100, 1000).toString(),
+                    ValorMercadoria: valorDoc.toString()
+                }) + '\n';
+            }
+            
+            // Registro 355 - Total de Documentos (opcional)
+            if (incluirTotal) {
+                arquivo += criarRegistro('355', {
+                    Quantidade: quantDocumentos.toString(),
+                    ValorTotal: valorTotal.toString()
+                }) + '\n';
+            }
+            
+            return arquivo;
+        }
+
+        // UI Handling
+        document.addEventListener('DOMContentLoaded', function () {
+            const tipoArquivoSelect = document.getElementById('tipoArquivo');
+            const conembFields = document.getElementById('conemb-fields');
+            const ocorenFields = document.getElementById('ocoren-fields');
+            const docbobFields = document.getElementById('docbob-fields');
+            
+            // Tab handling
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function () {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    
+                    const tabContents = document.querySelectorAll('.tab-content');
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    
+                    const tabId = this.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+            
+            // Mostrar/ocultar campos conforme o tipo de arquivo selecionado
+            tipoArquivoSelect.addEventListener('change', function () {
+                const tipo = this.value;
+                
+                conembFields.style.display = tipo === 'CON' ? 'block' : 'none';
+                ocorenFields.style.display = tipo === 'OCO' ? 'block' : 'none';
+                docbobFields.style.display = tipo === 'COB' ? 'block' : 'none';
+            });
+            
+            // Gerar arquivo
+            const gerarBtn = document.getElementById('gerarBtn');
+            const previewContent = document.getElementById('previewContent');
+            const statusDiv = document.getElementById('status');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const downloadStatus = document.getElementById('downloadStatus');
+            
+            let arquivoGerado = '';
+            
+            gerarBtn.addEventListener('click', function () {
+                const tipoArquivo = tipoArquivoSelect.value;
+                
+                try {
+                    if (tipoArquivo === 'CON') {
+                        const quantConhecimentos = parseInt(document.getElementById('quantConhecimentos').value) || 1;
+                        const incluirTotal = document.getElementById('incluirTotal').checked;
+                        arquivoGerado = gerarConemb(quantConhecimentos, incluirTotal);
+                    } else if (tipoArquivo === 'OCO') {
+                        const quantOcorrencias = parseInt(document.getElementById('quantOcorrencias').value) || 1;
+                        const tipoOcorrencia = document.getElementById('tipoOcorrencia').value;
+                        arquivoGerado = gerarOcoren(quantOcorrencias, tipoOcorrencia);
+                    } else if (tipoArquivo === 'COB') {
+                        const quantDocumentos = parseInt(document.getElementById('quantDocumentos').value) || 1;
+                        const incluirTotal = document.getElementById('incluirTotalCob').checked;
+                        arquivoGerado = gerarDoccob(quantDocumentos, incluirTotal);
+                    }
+                    
+                    previewContent.textContent = arquivoGerado;
+                    statusDiv.innerHTML = '<div class="success">Arquivo gerado com sucesso!</div>';
+                    downloadBtn.style.display = 'block';
+                    downloadStatus.innerHTML = '';
+                    
+                    // Mostrar a aba de pré-visualização
+                    tabs.forEach(t => t.classList.remove('active'));
+                    document.querySelector('.tab[data-tab="preview"]').classList.add('active');
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    document.getElementById('preview').classList.add('active');
+                } catch (e) {
+                    statusDiv.innerHTML = '<div class="error">Erro ao gerar arquivo: ' + e.message + '</div>';
+                    console.error(e);
+                }
+            });
+            
+            // Download do arquivo
+            downloadBtn.addEventListener('click', function () {
+                if (!arquivoGerado) {
+                    downloadStatus.innerHTML = '<div class="error">Nenhum arquivo gerado para download</div>';
+                    return;
+                }
+                
+                try {
+                    const tipoArquivo = tipoArquivoSelect.value;
+                    let nomeArquivo = '';
+                    
+                    if (tipoArquivo === 'CON') {
+                        nomeArquivo = 'CONEMB_' + new Date().toISOString().replace(/[:.]/g, '-') + '.edi';
+                    } else if (tipoArquivo === 'OCO') {
+                        nomeArquivo = 'OCOREN_' + new Date().toISOString().replace(/[:.]/g, '-') + '.edi';
+                    } else if (tipoArquivo === 'COB') {
+                        nomeArquivo = 'DOCCOB_' + new Date().toISOString().replace(/[:.]/g, '-') + '.edi';
+                    }
+                    
+                    const blob = new Blob([arquivoGerado], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = nomeArquivo;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                    
+                    downloadStatus.innerHTML = '<div class="success">Download iniciado com sucesso!</div>';
+                } catch (e) {
+                    downloadStatus.innerHTML = '<div class="error">Erro ao fazer download: ' + e.message + '</div>';
+                    console.error(e);
+                }
+            });
+        });
+    </script>
+</body>
+</html>
