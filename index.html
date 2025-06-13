@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor EDI PROCEDA</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1,
+        h2 {
+            color: #333;
+        }
+
+        .file-input {
+            margin: 20px 0;
+            display: flex;
+        }
+
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #f1f1f1;
+            border: 1px solid #ddd;
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            margin-right: 5px;
+        }
+
+        .tab.active {
+            background: white;
+            border-bottom: 1px solid white;
+            margin-bottom: -1px;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+
+        th,
+        td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        .raw-content {
+            font-family: monospace;
+            white-space: pre-wrap;
+            background: #f8f8f8;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+
+        .registro {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background: white;
+        }
+
+        .registro-header {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #2c3e50;
+        }
+
+        .campo {
+            display: flex;
+            margin-bottom: 5px;
+            gap: 4px;
+            justify-content: space-between;
+            border-bottom: 1px solid #f1f1f1;
+        }
+
+        .campo-nome {
+            flex: 50%;
+            font-weight: bold;
+        }
+
+        .campo-valor {
+            flex: 50%;
+        }
+
+        .error {
+            color: red;
+            margin: 10px 0;
+        }
+
+        .success {
+            color: green;
+            margin: 10px 0;
+        }
+        button {
+            width: 50%;
+            padding: 5px;
+            border: 1px solid gray;
+            border-radius: 0px 5px 5px 0px;
+        }
+
+        .file {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            width: 50%;
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+            border-radius: 5px 0px 0px 5px;
+
+            &:hover {
+                border: 1px solid red;
+            }
+
+            & div {
+                background: #4CAF50;
+            }
+        }
+
+        input[type="file"] {
+            opacity: 0;
+            /* Hide the native file input */
+            position: absolute;
+            /* Take it out of the layout flow */
+            left: -9999px;
+            /* Ensure it's hidden offscreen */
+        }
+
+        input[type="file"]::file-selector-button {
+            background-color: #008080;
+            /* Change the browse button color */
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            /* Optional styles for the browse button */
+            transition: background-color 0.2s;
+        }
+
+        input[type="file"]::file-selector-button:hover {
+            background-color: #005050;
+            /* Change on hover */
+        }
+
+        
+        /* Small devices (portrait tablets and large phones, 600px and up) */
+        @media only screen and (max-width: 600px) {
+            .campo{
+                display: inline;
+                flex-direction: row !important;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Leitor EDI PROCEDA</h1>
+        <p>Leitor de arquivos EDI nos padrões OCOREN (ocorrências na entrega), CONEMB (conhecimentos embarcados) e DOCCOB (OCORRÊNCIA NA ENTREGA DE MERCADORIA)</p>
+
+        <div class="file-input">
+            <label class="file" for="ediFile">
+                <div>Escolher Arquivo</div>
+            </label>
+            <input hidden type="file" id="ediFile" accept=".edi,.txt">
+            <button id="processBtn">Processar Arquivo</button>
+        </div>
+        <small id="viewname"></small>
+
+        <div id="status" class="status"></div>
+
+        <div class="tabs">
+            <div class="tab active" data-tab="resumo">Resumo</div>
+            <div class="tab" data-tab="detalhes">Detalhes</div>
+            <div class="tab" data-tab="raw">Conteúdo Bruto</div>
+        </div>
+
+        <div id="resumo" class="tab-content active">
+            <h2>Resumo do Arquivo</h2>
+            <div id="summary"></div>
+        </div>
+
+        <div id="detalhes" class="tab-content">
+            <h2>Detalhes dos Registros</h2>
+            <div id="details"></div>
+        </div>
+
+        <div id="raw" class="tab-content">
+            <h2>Conteúdo Bruto do Arquivo</h2>
+            <div id="rawContent" class="raw-content"></div>
+        </div>
+    </div>
+
+    <script>
+const oc = {
+    "01": "Entrega Realizada Normalmente",
+    "02": "Entrega Fora da Data Programada",
+    "03": "Recusa por Falta de Pedido de Compra",
+    "04": "Recusa por Pedido de Compra Cancelado",
+    "05": "Falta de Espaço Físico no Depósito do Cliente Destino",
+    "06": "Endereço do Cliente Destino não Localizado",
+    "07": "Devolução não Autorizada pelo Cliente",
+    "08": "Preço Mercadoria em Desacordo com o Pedido Compra",
+    "09": "Mercadoria em Desacordo com o Pedido Compra",
+    "10": "Cliente Destino somente Recebe Mercadoria com Frete Pago",
+    "11": "Recusa por Deficiência Embalagem Mercadoria",
+    "12": "Redespacho não Indicado",
+    "13": "Transportadora não Atende a Cidade do Cliente Destino",
+    "14": "Mercadoria Sinistrada",
+    "15": "Endo Sagem Sinistrada",
+    "16": "Pedido de Compras em Duplicidade",
+    "17": "Mercadoria fora da Embalagem de Atacadista",
+    "18": "Mercadorias Trocadas",
+    "19": "Reentrega Solicitada pelo Cliente",
+    "20": "Entrega Prejudicada por Horário/Falta de Tempo Hábil",
+    "21": "Estabelecimento Fechado",
+    "22": "Reentrega sem Cobrança do Cliente",
+    "23": "Extravio de Mercadoria em Trânsito",
+    "24": "Mercadoria Reentregue ao Cliente Destino",
+    "25": "Mercadoria Devolvida ao cliente Origem de Origem",
+    "26": "Nota Fiscal Retida pela Fiscalização",
+    "27": "Roubo de Carga",
+    "28": "Mercadoria Retida até Segunda Ordem",
+    "29": "Cliente Retira Mercadoria na Transportadora",
+    "30": "Problema com a Documentação (Nota Fiscal / CTRC)",
+    "31": "Entrega com Indenização Efetuada",
+    "32": "Falta com Solicitação de Reposição",
+    "33": "Falta com Busca/Reconferência",
+    "34": "Cliente Fechado para Balanço",
+    "35": "Quantidade de Produto em Desacordo (Nota Fiscal e/ou Pedido)",
+    "41": "Pedido de Compra Incompleto",
+    "42": "Nota Fiscal com Produtos de Setores Diferentes",
+    "43": "Periado Local/Macional",
+    "44": "Excesso de Veículos",
+    "45": "Cliente Destino Encerrou Atividades",
+    "46": "Responsável de Recebimento Ausente",
+    "47": "Cliente Destino em Greve",
+    "50": "Greve nacional (greve geral)",
+    "65": "Entrar em Contacto com o Comprador",
+    "66": "Troca não Disponível",
+    "67": "Fins Estatísticos",
+    "68": "Data de Entrega Diferente do Pedido",
+    "69": "Substituição Tributária",
+    "70": "Sistema Fora do Ar",
+    "71": "Cliente Destino não Recebe Pedido Parcial",
+    "72": "Cliente Destino só Recebe Pedido Parcial",
+    "73": "Redespacho somente com Frete Pago",
+    "74": "Funcionário não autorizado a Receber Mercadorias",
+    "75": "Mercadoria Embarcada para Rota Indevida",
+    "76": "Estrada/Entrada de Acesso Interditada",
+    "77": "Cliente Destino Mudou de Endereço",
+    "78": "Avaria Total",
+    "79": "Avaria Parcial",
+    "80": "Extravio Total",
+    "81": "Extravio Parcial",
+    "82": "Sobra de Mercadoria sem Nota Fiscal",
+    "83": "Mercadoria em poder da SUFRAMA para Internação",
+    "84": "Mercadoria Retirada para Conferência",
+    "85": "Apreensão Fiscal da Mercadoria",
+    "86": "Excesso de Carga/Peso",
+    "91": "Entrega Programada",
+    "92": "Problemas Fiscais",
+    "99": "Outros tipos de ocorrências não especificados acima"
+};
+
+class ValidaProceda {
+    // Método para validar um registro específico
+    validarRegistro(tipoRegistro, dados) {
+        if (!this.registros[tipoRegistro]) {
+            throw new Error(`Tipo de registro ${tipoRegistro} não existe.`);
+        }
+        const registro = this.registros[tipoRegistro];
+        const erros = [];
+        // Verificar tamanho total do registro
+        if (dados.length !== registro.tamanho) {
+            erros.push(`Tamanho do registro incorreto. Esperado: ${registro.tamanho}, Recebido: ${dados.length}`);
+        }
+        // Verificar campos obrigatórios
+        registro.campos.forEach(campo => {
+            if (campo.status === 'M') {
+                const valor = dados.substr(campo.posicao - 1, this.getTamanhoCampo(campo.formato));
+                if (this.isVazio(valor, campo.formato)) {
+                    erros.push(`Campo obrigatório não preenchido: ${campo.nome}`);
+                }
+            }
+        });
+        return erros.length === 0 ? true : erros;
+    }
+    // Método auxiliar para obter o tamanho do campo
+    getTamanhoCampo(formato) {
+        const partes = formato.split('.');
+        if (partes.length > 1) {
+            return parseInt(partes[0].substr(1)) + parseInt(partes[1]);
+        }
+        return parseInt(formato.substr(1));
+    }
+    // Método auxiliar para verificar se o campo está vazio
+    isVazio(valor, formato) {
+        if (formato.startsWith('N')) {
+            return valor.replace(/0/g, '').length === 0;
+        } else if (formato.startsWith('A')) {
+            return valor.trim().length === 0;
+        }
+        return false;
+    }
+    // Método para gerar um registro vazio
+    gerarRegistroVazio(tipoRegistro) {
+        if (!this.registros[tipoRegistro]) {
+            throw new Error(`Tipo de registro ${tipoRegistro} não existe.`);
+        }
+        const registro = this.registros[tipoRegistro];
+        let dados = '';
+        registro.campos.forEach(campo => {
+            const tamanho = this.getTamanhoCampo(campo.formato);
+            if (campo.formato.startsWith('N')) {
+                dados += '0'.repeat(tamanho);
+            } else {
+                dados += ' '.repeat(tamanho);
+            }
+        });
+        return dados;
+    }
+    // Método para obter a estrutura de um registro
+    getEstruturaRegistro(tipoRegistro) {
+        if (!this.registros[tipoRegistro]) {
+            throw new Error(`Tipo de registro ${tipoRegistro} não existe.`);
+        }
+        return this.registros[tipoRegistro];
+    }
+    // Método para listar todos os tipos de registro disponíveis
+    listarTiposRegistro() {
+        return Object.keys(this.registros);
+    }
+}
+
+class CONEMB extends ValidaProceda{
+    constructor() {
+        super()
+        this.registros = {
+            '000':{
+                identificador: '000',
+                nome: 'CABEÇALHO DE INTERCÂMBIO',
+                tamanho: 680,
+                ocorrencias: 1,
+                campos: [
+                    {nome: "Identificador de Registro",formato: "N3",posicao: 1,status: "M",notas: "000"},
+                    {nome: "Identificação do Remetente",formato: "A35",posicao: 4,status: "M",notas: ""},
+                    {nome: "Identificação do Destinatário",formato: "A35",posicao: 39,status: "M",notas: ""},
+                    {nome: "Data",formato: "N6",posicao: 74,status: "M",notas: "DDMMAA"},
+                    {nome: "Hora",formato: "N4",posicao: 80,status: "M",notas: "HHMM"},
+                    {nome: "Identificação do Intercâmbio",formato: "A12",posicao: 84,status: "M",notas: ""},
+                    {nome: "Filler",formato: "A631",posicao: 96,status: "M",notas: ""}
+                ]
+            },
+            '320': {
+                identificador: '320',
+                nome: 'CABEÇALHO DE DOCUMENTO',
+                tamanho: 680,
+                ocorrencias: 200,
+                campos: [
+                    {nome: "Identificador de Registro",formato: "N3",posicao: 1,status: "M",notas: "320"},
+                    {nome: "Identificação do Documento",formato: "A14",posicao: 4,status: "M",notas: ""},
+                    {nome: "Filler",formato: "A709",posicao: 18,status: "M",notas: ""}
+                ]
+            },
+            '321': {
+                identificador: '321',
+                nome: 'DADOS DA TRANSPORTADORA',
+                tamanho: 680,
+                ocorrencias: 1,
+                campos: [
+                    {nome: "Identificador de Registro",formato: "N3",posicao: 1,status: "M",notas: "321"},
+                    {nome: "CGC",formato: "N14",posicao: 4,status: "M",notas: ""},
+                    {nome: "Razão Social",formato: "A40",posicao: 18,status: "C",notas: ""},
+                    {nome: "Filler",formato: "A623",posicao: 58,status: "M",notas: ""}
+                ]
+            },
+            '322': {
+                identificador: '322',
+                nome: 'CONHECIMENTOS EMBARCADOS',
+                tamanho: 752,
+                ocorrencias: 1000,
+                campos: [
+                    {nome: "IDENTIFICADOR DE REGISTRO",formato: "N3",posicao: 1,status: "M",notas: "322"},
+                    {nome: "FILIAL EMISSORA DO CONHECIMENTO",formato: "A10",posicao: 4,status: "C",notas: ""},
+                    {nome: "SÉRIE DO CONHECIMENTO",formato: "A5",posicao: 14,status: "C",notas: ""},
+                    {nome: "NÚMERO DO CONHECIMENTO",formato: "A12",posicao: 19,status: "M",notas: ""},
+                    {nome: "DATA DE EMISSÃO",formato: "N8",posicao: 31,status: "M",notas: "DDMMAAAA"},
+                    {nome: "CONDIÇÃO DE FRETE",formato: "A1",posicao: 39,status: "M",notas: "C=CIF, F=FOB"},
+                    {nome: "PESO TRANSPORTADO",formato: "N5,2",posicao: 40,status: "M",notas: "5 inteiros, 2 decimais"},
+                    {nome: "VALOR TOTAL DO FRETE",formato: "N13,2",posicao: 47,status: "M",notas: "13 inteiros, 2 decimais"},
+                    {nome: "BASE DE CÁLCULO PARA APURAÇÃO ICMS",formato: "N13,2",posicao: 62,status: "M",notas: "13 inteiros, 2 decimais"},
+                    {nome: "% DE TAXA DO ICMS",formato: "N2,2",posicao: 77,status: "M",notas: "2 inteiros, 2 decimais"},
+                    {nome: "VALOR DO ICMS",formato: "N13,2",posicao: 81,status: "M",notas: "13 inteiros, 2 decimais"},
+                    {nome: "VALOR DO FRETE POR PESO/VOLUME",formato: "N13,2",posicao: 96,status: "M",notas: "13 inteiros, 2 decimais"},
+                    {nome: "FRETE VALOR",formato: "N13,2",posicao: 111,status: "M",notas: "13 inteiros, 2 decimais"},
+                    {nome: "VALOR SEC - CAT",formato: "N13,2",posicao: 126,status: "C",notas: "13 inteiros, 2 decimais"},
+                    {nome: "VALOR ITR",formato: "N13,2",posicao: 141,status: "M",notas: "13 inteiros, 2 decimais"},
+                    {nome: "VALOR DO DESPACHO",formato: "N13,2",posicao: 156,status: "M",notas: "13 inteiros, 2 decimais"},
+                ]
+            },
+            '323': {
+                identificador: '323',
+                nome: 'TOTAL DE CONHECIMENTOS',
+                tamanho: 680,
+                ocorrencias: 1,
+                campos: [
+                    {nome: "Identificador de Registro",formato: "N3",posicao: 1,status: "M",notas: "323"},
+                    {nome: "Quantidade Total de Conhecimentos",formato: "N4",posicao: 4,status: "M",notas: ""},
+                    {nome: "Valor Total dos Conhecimentos",formato: "N13,2",posicao: 8,status: "M",notas: ""},
+                    {nome: "Filler",formato: "A658",posicao: 23,status: "M",notas: ""}
+                ]
+            },
+            '329': {
+                identificador: '329',
+                nome: 'DADOS COMPLEMENTARES',
+                tamanho: 680,
+                ocorrencias: 1,
+                campos: [
+                    {nome: "Identificador de Registro",formato: "N3",posicao: 1,status: "M",notas: "329"},
+                    {nome: "Tipo do Meio de Transporte",formato: "A5",posicao: 4,status: "C",notas: "Códigos disponíveis"},
+                    {nome: "Filler",formato: "A500",posicao: 181,status: "M",notas: ""}
+                ]
+            },
+        };
+    }
+}
+class OCOREN extends ValidaProceda{
+    constructor() {
+        super()
+        this.registros = {
+            '000': {
+                identificador: '000',
+                nome: 'CABEÇALHO DE INTERCÂMBIO',
+                tamanho: 120,
+                ocorrencias: 1,
+                campos: [
+                    {nome: "Identificador de Registro",formato: "N3",posicao: 1,status: "M",notas: "000"},
+                    {nome: "Identificação do Remetente",formato: "A35",posicao: 4,status: "M",notas: ""},
+                    {nome: "Identificação do Destinatário",formato: "A35",posicao: 39,status: "M",notas: ""},
+                    {nome: "Data",formato: "N6",posicao: 74,status: "M",notas: "DDMMAA"},
+                    {nome: "Hora",formato: "N4",posicao: 80,status: "M",notas: "HHMM"},
+                    {nome: "Identificação do Intercâmbio",formato: "A12",posicao: 842,status: "M",notas: "OCODDMMHHMMS"},
+                    {nome: "Filler",formato: "A25",posicao: 96,status: "M",notas: ""}
+                ]
+            },
+            '340':{
+                identificador: '340',
+                nome: 'CABEÇALHO DO DOCUMENTO',
+                tamanho: 120,
+                ocorrencias: 200,
+                campos: [
+                    {nome: "Identificador de Registro",formato: "N3",posicao: 1,status: "M",notas: "340"},
+                    {nome: "Identificação do Documento",formato: "A14",posicao: 4,status: "M",notas: "OCORRDDMMHHMMS"},
+                    {nome: "Filler",formato: "A103",posicao: 18,status: "C",notas: ""}
+                ]
+            },
+            '341':{
+                identificador: '341',
+                nome: 'DADOS DA TRANSPORTADORA',
+                tamanho: 120,
+                ocorrencias: 1,
+                campos: [
+                    {nome: "Identificador de Registro",formato: "N3",posicao: 1,status: "M",notas: "341"},
+                    {nome: "CGC",formato: "N14",posicao: 4,tamanho: 14,status: "M",notas: ""},
+                    {nome: "RAZÃO SOCIAL",formato: "A40",posicao: 18,status: "C",notas: ""},
+                    {nome: "Filler",formato: "A63",posicao: 58,status: "C",notas: ""}
+                ]
+            },
+            '342':{
+                identificador: '342',
+                nome: 'DADOS DA TRANSPORTADORA',
+                tamanho: 120,
+                ocorrencias: 1,
+                campos: [
+                    {nome: "Identificador de Registro",formato: "N3",posicao: 1,status: "M",notas: "342"},
+                    {nome: "CGC DA EMPRESA EMISSORA DA NOTA FISCAL",formato: "N14",posicao: 4,status: "C",notas: ""},
+                    {nome: "SERIE DA NOTA FISCAL",formato: "A3",posicao: 18,status: "C",notas: ""},
+                    {nome: "NUMERO DA NOTA FISCAL",formato: "N8",posicao: 21,status: "M",notas: ""},
+                    {nome: "CODIGO DE OCORRENCIA NA ENTREGA",formato: "N2",posicao: 29,status: "M",notas: ""},
+                    {nome: "DATA DA OCORRENCIA",formato: "N8",posicao: 31,status: "M",notas: "DDMMAAAA"},
+                    {nome: "HORA DA OCORRENCIA",formato: "N4",posicao: 39,status: "C",notas: "HHMM"},
+                    {nome: "CODIGO DE OBSERVAÇÃO DE OCORRENCIA NA ENTREGA",formato: "N2",posicao: 43,status: "C",notas: "01,02,03"},
+                    {nome: "TEXTO EM FORMATO LIVRE",formato: "A70",posicao: 45,status: "C",notas: ""},
+                    {nome: "Filler",formato: "A6",posicao: 115,status: "C",notas: ""}
+                ]
+            },
+            '343':{
+                identificador: '343',
+                nome: 'OCORRÊNCIA NA ENTREGA',
+                tamanho: 120,
+                ocorrencias: 5000,
+                campos: [
+                    {nome: "Identificador de Registro",formato: "N3",posicao: 1,status: "M",notas: "343"},
+                    {nome: "CGC DA EMPRESA CONTRATANTE DO FRETE",formato: "N14",posicao: 4,status: "C",notas: ""},
+                    {nome: "FILIAL EMISSORA DO CONHECIMENTO",formato: "A10",posicao: 18,status: "C",notas: ""},
+                    {nome: "SERIE DO CONHECIMENTO",formato: "A5",posicao: 28,status: "C",notas: ""},
+                    {nome: "NÚMERO DO CONHECIMENTO",formato: "A12",posicao: 33,tstatus: "C",notas: ""},
+                    {nome: "Filler",formato: "A76",posicao: 45,status: "C",notas: ""}
+                ]
+            },
+        };
+    }
+}
+class DOCCOB extends ValidaProceda{
+    constructor() {
+        super()
+        this.registros = {
+            '000': {
+                identificador: '000',
+                nome: 'CABEÇALHO DE INTERCÂMBIO',
+                tamanho: 170,
+                ocorrencias: 1,
+                campos: [
+                    {nome: "Identificador de Registro", formato: "N3", posicao: 1, status: "M", notas: "'000'"},
+                    {nome: "Identificação do Remetente", formato: "A35", posicao: 4, status: "M", notas: "Nome da caixa postal do remetente."},
+                    {nome: "Identificação do Destinatário", formato: "A35", posicao: 39, status: "M", notas: "Nome da caixa postal do destinatário."},
+                    {nome: "Data", formato: "N6", posicao: 74, status: "M", notas: "DDMMAA (esta data é de uso da aplicação EDI, não sendo necessária estar no formato DDMMAAAA)."},
+                    {nome: "Hora", formato: "N4", posicao: 80, status: "M", notas: "HHMM"},
+                    {nome: "Identificação do Intercâmbio", formato: "A12", posicao: 84, status: "M", notas: "Sugestão: 'COBDDMMHHMMS' onde 'COB' = constante cobrança, 'DDMM' = dia/mês, 'HHMM' = hora/minuto, 'S' = sequência de 0 a 9"},
+                    {nome: "Filler", formato: "A75", posicao: 96, status: "C", notas: "Preencher com brancos."}
+                ]
+            },
+            '350': {
+                identificador: '350',
+                nome: 'CABEÇALHO DE DOCUMENTO',
+                tamanho: 170,
+                ocorrencias: 200,
+                campos: [
+                    {nome: "Identificador de Registro", formato: "N3", posicao: 1, status: "M", notas: "'350'"},
+                    {nome: "Identificação do Documento", formato: "A14", posicao: 4, status: "M", notas: "Sugestão: 'COBRADDMMHHMMS'"},
+                    {nome: "Filler", formato: "A153", posicao: 18, status: "C", notas: "Preencher com brancos."}
+                ]
+            },
+            '351': {
+                identificador: '351',
+                nome: 'DADOS DA TRANSPORTADORA',
+                tamanho: 170,
+                ocorrencias: 1,
+                campos: [
+                    {nome: "Identificador de Registro", formato: "N3", posicao: 1, status: "M", notas: "'351'"},
+                    {nome: "CGC", formato: "N14", posicao: 4, status: "M", notas: "Sem edição (pontos e hífen)."},
+                    {nome: "Razão Social", formato: "A40", posicao: 18, status: "C", notas: ""},
+                    {nome: "Filler", formato: "A113", posicao: 58, status: "C", notas: "Preencher com brancos."}
+                ]
+            },
+            '352': {
+                identificador: '352',
+                nome: 'DOCUMENTO DE COBRANÇA',
+                tamanho: 170,
+                ocorrencias: 100,
+                campos: [
+                    {nome: "Identificador de Registro", formato: "N3", posicao: 1, status: "M", notas: "'352'"},
+                    {nome: "Filial Emissora do Documento", formato: "A10", posicao: 4, status: "M", notas: "Identificação da unidade emissora."},
+                    {nome: "Tipo do Documento de Cobrança", formato: "N1", posicao: 14, status: "M", notas: "0 = Nota Fiscal/Fatura; 1 = Romaneio."},
+                    {nome: "Série do Documento de Cobrança", formato: "A3", posicao: 15, status: "C", notas: ""},
+                    {nome: "Número do Documento de Cobrança", formato: "N10", posicao: 18, status: "M", notas: ""},
+                    {nome: "Data de Emissão", formato: "N8", posicao: 28, status: "M", notas: "DDMMAAAA"},
+                    {nome: "Data de Vencimento", formato: "N8", posicao: 36, status: "M", notas: "DDMMAAAA"},
+                    {nome: "Valor do Documento de Cobrança", formato: "N13.2", posicao: 44, status: "M", notas: ""},
+                    {nome: "Tipo de Cobrança", formato: "A3", posicao: 59, status: "M", notas: ""},
+                    {nome: "Valor Total do ICMS", formato: "N13.2", posicao: 62, status: "M", notas: ""},
+                    {nome: "Valor - Juros por Dia de Atraso", formato: "N13.2", posicao: 77, status: "C", notas: ""},
+                    {nome: "Data Limite p/Pagto c/Desconto", formato: "N8", posicao: 92, status: "C", notas: "DDMMAAAA"},
+                    {nome: "Valor do Desconto", formato: "N13.2", posicao: 100, status: "C", notas: ""},
+                    {nome: "Identificação do Agente de Cobrança", formato: "A35", posicao: 115, status: "M", notas: "Nome do banco."},
+                    {nome: "Número da Agência Bancária", formato: "N4", posicao: 150, status: "C", notas: ""},
+                    {nome: "Dígito Verificador Núm. da Agência", formato: "A1", posicao: 154, status: "C", notas: ""},
+                    {nome: "Número da Conta Corrente", formato: "N10", posicao: 155, status: "C", notas: ""},
+                    {nome: "Dígito Verificador Conta Corrente", formato: "A2", posicao: 165, status: "C", notas: ""},
+                    {nome: "Ação do Documento", formato: "A1", posicao: 167, status: "C", notas: "I = Incluir; E = Excluir/Cancelar."},
+                    {nome: "Filler", formato: "A3", posicao: 168, status: "C", notas: "Preencher com brancos."}
+                ]
+            },
+            '353': {
+                identificador: '353',
+                nome: 'CONHECIMENTOS EM COBRANÇA',
+                tamanho: 170,
+                ocorrencias: 100,
+                campos: [
+                    {nome: "Identificador de Registro", formato: "N3", posicao: 1, status: "M", notas: "'353'"},
+                    {nome: "Filial Emissora do Documento", formato: "A10", posicao: 4, status: "M", notas: "Identificação da unidade emissora."},
+                    {nome: "Série do Conhecimento", formato: "A5", posicao: 14, status: "C", notas: ""},
+                    {nome: "Número do Conhecimento", formato: "A12", posicao: 19, status: "M", notas: ""},
+                    {nome: "Valor do Frete", formato: "N13.2", posicao: 31, status: "M", notas: ""},
+                    {nome: "Data de Emissão do Conhecimento", formato: "N8", posicao: 46, status: "M", notas: "DDMMAAAA"},
+                    {nome: "CGC do Remetente - Emissor da NF", formato: "N14", posicao: 54, status: "M", notas: "Sem edição (pontos e hífen)."},
+                    {nome: "CGC do Destinatário da NF", formato: "N14", posicao: 68, status: "M", notas: "Sem edição (pontos e hífen)."},
+                    {nome: "CGC do Emissor do Conhecimento", formato: "N14", posicao: 82, status: "M", notas: "Sem edição (pontos e hífen)."},
+                    {nome: "Filler", formato: "A75", posicao: 96, status: "C", notas: "Preencher com brancos."}
+                ]
+            },
+            '354': {
+                identificador: '354',
+                nome: 'NOTAS FISCAIS EM COBRANÇA NO CONHECIMENTO',
+                tamanho: 170,
+                ocorrencias: 40,
+                campos: [
+                    {nome: "Identificador de Registro", formato: "N3", posicao: 1, status: "M", notas: "'354'"},
+                    {nome: "Série", formato: "A3", posicao: 4, status: "C", notas: ""},
+                    {nome: "Número da Nota Fiscal", formato: "N8", posicao: 7, status: "M", notas: ""},
+                    {nome: "Data de Emissão da Nota Fiscal", formato: "N8", posicao: 15, status: "M", notas: "DDMMAAAA"},
+                    {nome: "Peso da Nota Fiscal", formato: "N5.2", posicao: 23, status: "M", notas: ""},
+                    {nome: "Valor da Mercadoria na Nota Fiscal", formato: "N13.2", posicao: 30, status: "M", notas: ""},
+                    {nome: "CGC do Emissor da Nota Fiscal", formato: "N14", posicao: 45, status: "C", notas: ""},
+                    {nome: "Filler", formato: "A112", posicao: 59, status: "C", notas: "Preencher com brancos."}
+                ]
+            },
+            '355': {
+                identificador: '355',
+                nome: 'TOTAL DE DOCUMENTOS DE COBRANÇA',
+                tamanho: 170,
+                ocorrencias: 1,
+                campos: [
+                    {nome: "Identificador de Registro", formato: "N3", posicao: 1, status: "M", notas: "'355'"},
+                    {nome: "Qtde. Total Doctos. de Cobrança", formato: "N4", posicao: 4, status: "M", notas: ""},
+                    {nome: "Valor Total Doctos. de Cobrança", formato: "N13.2", posicao: 8, status: "M", notas: ""},
+                    {nome: "Filler", formato: "A148", posicao: 23, status: "C", notas: "Preencher com brancos."}
+                ]
+            }
+        };
+    }
+}
+
+class NOTFIS extends ValidaProceda{
+    constructor() {
+        super()
+        this.registros = new Error(`Tipo de arquivo EDI não suportado`)
+    }
+}
+class PREFAT extends ValidaProceda{
+    constructor() {
+        super()
+        this.registros = new Error(`Tipo de arquivo EDI não suportado`)
+    }
+}
+
+class LeitorProceda {
+    constructor() {
+        this.type = "CON";
+        this.state = {
+            message: "",
+            error: false,
+        };
+        
+        // Inicializa os registros - assumindo que essas classes existem
+        this.registros = this.initializeRegistros();
+    }
+    /**
+     * Inicializa os registros de diferentes tipos de arquivo EDI
+     * @returns {Object} Objeto com os registros organizados por tipo
+     */
+    initializeRegistros() {
+        try {
+            return {
+                CON: new CONEMB().registros,
+                OCO: new OCOREN().registros,
+                COB: new DOCCOB().registros,
+                NOT: new NOTFIS().registros,
+                PRE: new PREFAT().registros,
+            };
+        } catch (error) {
+            console.error('Erro ao inicializar registros:', error);
+            return {};
+        }
+    }
+
+    real(){
+        return new Intl.NumberFormat('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+        })
+    }
+    /**
+     * Calcula o tamanho de um campo baseado no formato especificado
+     * @param {string} formato - Formato do campo (ex: "N5", "A10", "N5,2")
+     * @returns {number} Tamanho do campo
+     * @throws {Error} Se o formato for inválido
+     */
+    calcularTamanhoCampo(formato) {
+        if (!formato || typeof formato !== 'string') {
+            throw new Error('Formato inválido');
+        }
+        if (formato.includes(',')) {
+            const partes = formato.substring(1).split(',');
+            if (partes.length !== 2) {
+                throw new Error(`Formato decimal inválido: ${formato}`);
+            }
+            const parte1 = parseInt(partes[0]);
+            const parte2 = parseInt(partes[1]);
+            
+            if (isNaN(parte1) || isNaN(parte2)) {
+                throw new Error(`Formato numérico inválido: ${formato}`);
+            }
+            
+            return parte1 + parte2;
+        } else {
+            const tamanho = parseInt(formato.substring(1));
+            if (isNaN(tamanho)) {
+                throw new Error(`Formato inválido: ${formato}`);
+            }
+            return tamanho;
+        }
+    }
+    /**
+     * Lê uma linha do arquivo EDI e retorna um objeto com os campos preenchidos
+     * @param {string} linha - Linha do arquivo EDI
+     * @returns {Object} Objeto com os campos do registro
+     * @throws {Error} Se a linha for muito curta ou se o identificador for desconhecido
+     */
+    lerLinha(linha) {
+        if (!linha || typeof linha !== 'string') {
+            throw new Error("Linha inválida");
+        }
+        if (linha.length < 3) {
+            throw new Error("Linha muito curta para ser um registro EDI válido");
+        }
+        const identificador = linha.substring(0, 3);
+        // Processa registro de header (000) para determinar o tipo
+        if (identificador === '000') {
+            if (linha.length >= 86) {
+                // Baseado no código original, o tipo vem da posição 83-86
+                this.type = linha.substring(83, 86);
+                //console.log('Tipo detectado:', this.type);
+            }
+        }
+        // Se ainda não temos tipo definido, usar o padrão
+        const tipoAtual = this.type || "CON";
+        // Valida se o tipo é suportado
+        if (!this.registros[tipoAtual]) {
+            this.state = {
+                error: true,
+                message: `Tipo de registro não cadastrado: ${tipoAtual}`
+            };
+            throw new Error(this.state.message);
+        }
+        // Valida se o identificador existe para o tipo atual
+        if (!this.registros[tipoAtual][identificador]) {
+            throw new Error(`Identificador de registro desconhecido: ${identificador} para tipo ${tipoAtual}`);
+        }
+        this.state = { error: false, message: '' };
+        // Registro
+        const registro = this.registros[tipoAtual][identificador];
+        // Cria um objeto para armazenar os campos do registro
+        const resultado = {
+            _registro: identificador,
+            _nome_registro: registro.nome,
+        };
+        // Processa cada campo do registro
+        for (const campo of registro.campos) {
+            try {
+                const inicio = campo.posicao - 1;
+                const tamanho = this.calcularTamanhoCampo(campo.formato);
+                //if (inicio < 0 || inicio + tamanho > linha.length) {
+                //    console.warn(`Campo ${campo.nome} fora dos limites da linha`);
+                //    resultado[campo.nome] = '';
+                //    continue;
+                //}
+                let valor = linha.substring(inicio, inicio + tamanho).trim();
+                // Aplica formatação baseada no tipo do campo
+                valor = this.formatarCampo(campo, valor, identificador, linha);
+                
+                resultado[campo.nome] = valor;
+            } catch (error) {
+                console.error(`Erro ao processar campo ${campo.nome}:`, error);
+                resultado[campo.nome] = '';
+            }
+        }
+        return resultado;
+    }
+    /**
+     * Formata um campo baseado em seu tipo e características
+     * @param {Object} campo - Definição do campo
+     * @param {string} valor - Valor bruto do campo
+     * @param {string} identificador - Identificador do registro
+     * @param {string} linha - Linha completa (para campos especiais)
+     * @returns {*} Valor formatado
+     */
+    formatarCampo(campo, valor, identificador, linha) {
+        const nomeUpper = campo.nome.toUpperCase();
+        // Formatação de data
+        if (nomeUpper.includes("DATA")) {
+            return this.formatarData(valor);
+        }
+        
+        // Formatação de hora
+        if (nomeUpper.includes("HORA")) {
+            return this.formatarHora(valor);
+        }
+        
+        // Formatação de CNPJ/CGC
+        if (nomeUpper.includes('CGC') || nomeUpper.includes('CNPJ')) {
+            return this.formatarCNPJ(valor);
+        }
+        
+        // Código de ocorrência (assumindo que 'oc' é uma variável global)
+        if (campo.nome.includes('CODIGO DE OCORRENCIA NA ENTREGA')) {
+            const codigoOcorrencia = typeof oc !== 'undefined' && oc[valor] ? oc[valor] : 'Não encontrado';
+            return `${valor} - ${codigoOcorrencia}`;
+        }
+        
+        // Campo de intercâmbio
+        if (campo.nome.includes('Intercâmbio')) {
+            if (identificador === '000' && linha.length >= 95) {
+                const versaoCompleta = linha.substring(83, 95);
+                return this.formatVersion(versaoCompleta);
+            }
+            return valor;
+        }
+        if (campo.nome.toUpperCase().includes('VALOR')) {
+            return (parseFloat(valor) / 100).toLocaleString('pt-br',{style: 'currency', currency: 'BRL'});
+        }
+        
+        // Formatação numérica
+        if (campo.formato.startsWith('N')) {
+            if (campo.formato.includes(',')) {
+                // Campo decimal
+                return valor !== '' ? parseFloat(valor) / 100 : 0.0;
+            } else {
+                // Campo inteiro
+                return valor !== '' ? parseInt(valor) : 0;
+            }
+        }
+        return valor;
+    }
+    /**
+     * Lê o conteúdo de um arquivo EDI e retorna uma lista de registros
+     * @param {string} conteudo - Conteúdo do arquivo EDI
+     * @returns {Array} Lista de objetos representando os registros lidos
+     */
+    lerArquivo(conteudo) {
+        if (!conteudo || typeof conteudo !== 'string') {
+            throw new Error('Conteúdo do arquivo inválido');
+        }
+        const linhas = conteudo.split(/\r?\n/);
+        const registros = [];
+        let errosProcessamento = 0;
+        // Processa cada linha do arquivo
+        for (let i = 0; i < linhas.length; i++) {
+            const linha = linhas[i];
+            
+            if (linha.trim() !== '') {
+                try {
+                    const registro = this.lerLinha(linha);
+                    registros.push(registro);
+                } catch (error) {
+                    errosProcessamento++;
+                    console.warn(`Erro ao processar linha ${i + 1}: ${error.message}`);
+                    
+                    // Se houver muitos erros, pode indicar problema no arquivo
+                    if (errosProcessamento > 10) {
+                        console.error('Muitos erros de processamento. Verificar formato do arquivo.');
+                    }
+                }
+            }
+        }
+        console.log(`Processamento concluído: ${registros.length} registros processados, ${errosProcessamento} erros`);
+        return registros;
+    }
+    /**
+     * Formata uma string representando uma data no formato DDMMAAAA ou DDMMAA
+     * @param {string} dataStr - String representando a data
+     * @returns {string} Data formatada no formato DD/MM/AAAA ou string original se inválida
+     */
+    formatarData(dataStr) {
+        if (!dataStr || (dataStr.length !== 8 && dataStr.length !== 6)) {
+            return dataStr;
+        }
+        const dia = dataStr.substring(0, 2);
+        const mes = dataStr.substring(2, 4);
+        const ano = dataStr.length === 8 ? dataStr.substring(4, 8) : '20' + dataStr.substring(4, 6);
+        // Validação básica
+        const diaNum = parseInt(dia);
+        const mesNum = parseInt(mes);
+        const anoNum = parseInt(ano);
+        if (diaNum < 1 || diaNum > 31 || mesNum < 1 || mesNum > 12 || anoNum < 1900) {
+            console.warn(`Data inválida: ${dataStr}`);
+            return dataStr;
+        }
+        return `${dia}/${mes}/${ano}`;
+    }
+    /**
+     * Formata uma string representando uma hora no formato HHMM
+     * @param {string} horaStr - String representando a hora
+     * @returns {string} Hora formatada no formato HH:MM ou string original se inválida
+     */
+    formatarHora(horaStr) {
+        if (!horaStr || horaStr.length !== 4) {
+            return horaStr;
+        }
+        const hora = horaStr.substring(0, 2);
+        const minuto = horaStr.substring(2, 4);
+        // Validação básica
+        const horaNum = parseInt(hora);
+        const minutoNum = parseInt(minuto);
+        if (horaNum < 0 || horaNum > 23 || minutoNum < 0 || minutoNum > 59) {
+            console.warn(`Hora inválida: ${horaStr}`);
+            return horaStr;
+        }
+        return `${hora}:${minuto}`;
+    }
+    /**
+     * Formata uma string representando um CNPJ no formato 00.000.000/0000-00
+     * @param {string} cnpjStr - String representando o CNPJ
+     * @returns {string} CNPJ formatado ou string original se inválida
+     */
+    formatarCNPJ(cnpjStr) {
+        if (!cnpjStr || cnpjStr.length !== 14) {
+            return cnpjStr;
+        }
+        // Verifica se contém apenas números
+        if (!/^\d+$/.test(cnpjStr)) {
+            return cnpjStr;
+        }
+        return `${cnpjStr.substring(0, 2)}.${cnpjStr.substring(2, 5)}.${cnpjStr.substring(5, 8)}/${cnpjStr.substring(8, 12)}-${cnpjStr.substring(12, 14)}`;
+    }
+    /**
+     * Formata string de versão do intercâmbio
+     * @param {string} str - String da versão
+     * @returns {string} Versão formatada ou string original se não corresponder ao padrão
+     */
+    formatVersion(str) {
+        if (!str || typeof str !== 'string') {
+            return str;
+        }
+        const regex = /^(\D{3})(\d)(\d)(\d{2})(\d{2})(\d{3})$/;
+        const match = str.match(regex);
+        
+        if (!match) {
+            return str;
+        }
+        const [, prefix, vMajor, vMinor, day, month, serial] = match;
+        return `${prefix} v${vMajor}.${vMinor} ${day}/${month} - ${serial}`;
+    }
+
+    /**
+     * Retorna o estado atual do leitor
+     * @returns {Object} Estado atual
+     */
+    getState() {
+        return { ...this.state };
+    }
+
+    /**
+     * Retorna o tipo atual do arquivo sendo processado
+     * @returns {string} Tipo do arquivo
+     */
+    getType() {
+        return this.type;
+    }
+    getName(){
+        return {
+            OCO:'OCORREN',
+            CON:'CONEMB',
+            COB:'DOCCOB',
+        }[this.getType()]
+    }
+    /**
+     * Reset do leitor para processamento de novo arquivo
+     */
+    reset() {
+        this.type = "CON";
+        this.state = {
+            message: "",
+            error: false,
+        };
+    }
+}
+
+
+        // UI Handling
+        document.addEventListener('DOMContentLoaded', function () {
+            const leitor = new LeitorProceda();
+            const fileInput = document.getElementById('ediFile');
+            const processBtn = document.getElementById('processBtn');
+            const statusDiv = document.getElementById('status');
+            const summaryDiv = document.getElementById('summary');
+            const detailsDiv = document.getElementById('details');
+            const rawContentDiv = document.getElementById('rawContent');
+            // Load file on change
+            fileInput.addEventListener('change', function (e) {
+                statusDiv.innerHTML = ''; // Clear previous status
+                summaryDiv.innerHTML = ''; // Clear previous summary
+                detailsDiv.innerHTML = ''; // Clear previous details
+                rawContentDiv.textContent = ''; // Clear previous raw content
+                setTimeout(loadFile, 300);
+                viewname.innerHTML = e.target.files[0].name;
+            });
+            // Tab handling
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', function () {
+                    tabs.forEach(t => t.classList.remove('active'));
+                    this.classList.add('active');
+                    // Hide all tab contents
+                    const tabContents = document.querySelectorAll('.tab-content');
+                    tabContents.forEach(content => content.classList.remove('active'));
+                    // Show the content of the clicked tab
+                    const tabId = this.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+            /** Função para carregar o arquivo selecionado e processar seu conteúdo
+             * 
+             * Esta função lê o arquivo EDI selecionado, processa seu conteúdo e exibe
+             * um resumo dos registros encontrados, bem como detalhes de cada registro.
+             * 
+             * @returns {void}
+             */
+            function loadFile() {
+                const file = fileInput.files[0];
+                if (!file) {
+                    statusDiv.innerHTML = '<div class="error">Por favor, selecione um arquivo</div>';
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    try {
+                        const conteudo = e.target.result;
+                        const registros = leitor.lerArquivo(conteudo);
+                        // Show raw content
+                        rawContentDiv.textContent = conteudo;
+                        // Show summary
+                        mostrarResumo(registros);
+                        // Show details
+                        mostrarDetalhes(registros);
+                        // Update status
+                        statusDiv.innerHTML =`<div class="success">Arquivo processado com sucesso! ${registros.length} registros encontrados.</div>`;
+                    } catch (e) {
+                        statusDiv.innerHTML =`<div class="error">Erro ao processar arquivo: ${e.message}</div>`;
+                        console.error(e);
+                    }
+                };
+                reader.onerror = function () {
+                    statusDiv.innerHTML = '<div class="error">Erro ao ler o arquivo</div>';
+                };
+                reader.readAsText(file);
+            }
+            // Process file button
+            processBtn.addEventListener('click', function () {
+                loadFile();
+            });
+            /** Funções para exibir resumo e detalhes dos registros
+             * 
+             * Estas funções processam os registros lidos do arquivo EDI e exibem
+             * um resumo dos tipos de registros encontrados, bem como detalhes de cada registro.
+             * 
+             * @param {Array} registros - Lista de registros lidos do arquivo EDI
+             */
+            function mostrarResumo(registros) {
+                if (registros.length === 0) {
+                    summaryDiv.innerHTML = '<p>Nenhum registro encontrado no arquivo.</p>';
+                    return;
+                }
+                // Contar tipos de registros
+                const contagem = {};
+                registros.forEach(reg => {
+                    const tipo = reg._registro;
+                    contagem[tipo] = (contagem[tipo] || 0) + 1;
+                });
+                // Criar tabela de resumo
+                let html = '<table>';
+                html += '<tr><th>Tipo de Registro</th><th>Descrição</th><th>Quantidade</th></tr>';
+                // Adicionar contagem de cada tipo de registro
+                for (const tipo in contagem) {
+                    const type = leitor.getType()
+                    const registro = leitor.registros[type][tipo];
+                    html += `<tr>
+                        <td>${tipo}</td>
+                        <td>${registro ? registro.nome : 'Desconhecido'}</td>
+                        <td>${contagem[tipo]}</td>
+                    </tr>`;
+                }
+                html += '</table>';
+                // Exemplo de primeiro registro CONEMB se existir
+                const primeiroOcoren = registros.find(reg => reg._registro === '000');
+                if (primeiroOcoren) {
+                    html += `<h3>Registro ${leitor.getName()||"Desconhecido"} (${primeiroOcoren._registro})</h3>`;
+                    html += '<div class="registro">';
+                    html += `<div class="registro-header">${primeiroOcoren._registro} - ${primeiroOcoren._nome_registro}</div>`;
+                    for (const campo in primeiroOcoren) {
+                        if (!campo.startsWith('_')) {
+                            let valor = primeiroOcoren[campo];
+                            html += `<div class="campo"><div class="campo-nome">${campo}:</div><div class="campo-valor">${valor}</div></div>`;
+                        }
+                    }
+                    html += '</div>';
+                }
+                summaryDiv.innerHTML = html;
+            }
+            function mostrarDetalhes(registros) {
+                if (registros.length === 0) {
+                    detailsDiv.innerHTML = '<p>Nenhum registro encontrado no arquivo.</p>';
+                    return;
+                }
+                let html = '';
+                registros.forEach((reg, index) => {
+                    html += `<div class="registro"><div class="registro-header">Registro #${index + 1}: ${reg._registro} - ${reg._nome_registro}</div>`;
+                    for (const campo in reg) {
+                        if (!campo.startsWith('_')) {
+                            let valor = reg[campo];
+                            html += `<div class="campo"><div class="campo-nome">${campo}:</div><div class="campo-valor">${valor}</div></div>`;
+                        }
+                    }
+                    html += '</div>';
+                });
+                detailsDiv.innerHTML = html;
+            }
+        });
+    </script>
+</body>
+</html>
